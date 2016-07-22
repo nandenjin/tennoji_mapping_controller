@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta chraset="utf-8">
+    <title>nan-lab Mapping Client</title>
+    <style>
+      body{
+        background:#000;
+        color:#FFF;
+        margin:0px;
+      }
+      #main{
+        position:absolute;
+        width:800px;
+        height:600px;
+      }
+      #cnv{
+        position:absolute;
+        border:orange 1px solid;
+      }
+      .dragbox{
+        position:absolute;
+        width:50px;
+        height:50px;
+        border-radius:50%;
+        cursor:;
+      }
+      #db0{
+        top:calc(50% - 25px);
+        left:calc(50% - 25px);
+        background:rgba(255,0,0,0.5);
+        cursor:move;
+      }
+      #db1{
+        right:calc(25% - 25px);
+        bottom:calc(25% - 25px);
+        background:rgba(0,255,0,0.5);
+        cursor:se-resize;
+      }
+    </style>
+    <script>
+      var width=800,height=600;
+      var main,cnv,ctx,vde=[],currentVde,img,imgObj,renderObj,zooming=false,positioning=false,ctrlMode=true,defMP=[0,0],defOP=[0,0],defOS=[width,height];
+      var imgCnv,imgCtx,imgHslValue=0,imgAlphaValue=1,imgAlphaTarget=1;
+      
+      imgObj=new Image();
+      imgObj.src="phy_frame_transparent.png";
+      
+      function elm(id){
+        return document.getElementById(id);
+      }
+      window.addEventListener('DOMContentLoaded',function(){
+        main=elm('main');
+        cnv=elm('cnv');
+        ctx=cnv.getContext('2d');
+        vde[0]=elm('vde0');
+        vde[1]=elm('vde1');
+        currentVde=vde[0];
+        
+        imgCnv=elm("img");
+        imgCtx=imgCnv.getContext("2d");
+        img=imgCnv;
+        
+        elm('db0').addEventListener('mousedown',function(e){
+          positioning=true;
+          defMP=[e.clientX,e.clientY];
+        });
+        
+        elm('db1').addEventListener('mousedown',function(e){
+          zooming=true;
+          defMP=[e.clientX,e.clientY];
+        });
+        
+        document.body.addEventListener('mouseup',function(e){
+          if(positioning){
+            zooming=false,positioning=false;
+            defOP=[e.clientX-defMP[0]+defOP[0],e.clientY-defMP[1]+defOP[1]];
+          }
+          
+          if(zooming){
+            zooming=false,positioning=false;
+            defOS=[e.clientX-defMP[0]+defOS[0],e.clientY-defMP[1]+defOS[1]];
+          }
+        });
+        
+        document.body.addEventListener('mousemove',function(e){
+          if(positioning){
+            main.style.top=(e.clientY-defMP[1]+defOP[1])+'px';
+            main.style.left=(e.clientX-defMP[0]+defOP[0])+'px';
+          }
+          if(zooming){
+            width=e.clientX-defMP[0]+defOS[0],height=e.clientY-defMP[1]+defOS[1];
+            main.style.height=height+'px';
+            main.style.width=width+'px';
+            
+            cnv.height=height;
+            cnv.width=width;
+          }
+        });
+        
+        window.addEventListener('keydown',function(e){
+          var c=e.keyCode;
+          if(c==67){
+            if(ctrlMode){
+              elm('ctrls').style.display='none';
+              elm('cnv').style.borderStyle='none';
+            }else{
+              elm('ctrls').style.display='block';
+              elm('cnv').style.borderStyle='solid';
+            }
+            ctrlMode=!ctrlMode;
+          }else if(c==83){
+            renderObj=currentVde;
+            renderObj.play();
+          }else if(c==80){
+           		vde[0].pause();
+           		vde[1].pause();
+          }else if(c==82){
+            vde[0].currentTime=0;
+            vde[1].currentTime=0;
+          }else if(c==69){
+            renderObj=img;
+          }else{
+            console.log('Key input : '+c);
+          }
+        });
+      });
+      window.addEventListener('load',function(){
+        renderObj=img;
+        requestAnimationFrame(function(){
+          ctx.clearRect(0,0,width,height);
+          ctx.drawImage(renderObj,0,0,width,height);
+          
+          if(imgAlphaValue>imgAlphaTarget){
+          	imgAlphaValue=Math.max(imgAlphaValue-0.01,0);
+          }else if(imgAlphaValue<imgAlphaTarget){
+          	imgAlphaValue=Math.min(imgAlphaValue+0.01,1);
+          }
+          imgHslValue+=0.05;
+          if(imgHslValue>360){
+          	imgHslValue-=360;
+          }
+
+          imgCtx.clearRect(0,0,1280,720);
+          imgCtx.globalAlpha=imgAlphaValue;
+          imgCtx.fillStyle="hsl("+imgHslValue+",100%,60%)";
+          imgCtx.fillRect(0,0,1280,720);
+          imgCtx.drawImage(imgObj,0,0,1280,720);
+          requestAnimationFrame(arguments.callee);
+        });
+        checkCmd();//レシーバ起動
+      });
+      
+      //以下リモートレシーバ
+      var lastQid="";
+      function checkCmd(){
+      	var q=new XMLHttpRequest();
+      	q.open("GET","cmd.oda?"+new Date().getTime());
+      	q.onload=function(){
+      	  var r=JSON.parse(q.response);
+      	  if(lastQid!=""&&lastQid!=r.id){
+      	    if(r.cmd=="ctrl_run_0"){
+      	    		renderObj=vde[0];
+      	    		vde[0].play();
+      	    		responseStatus("run");
+      	    }else if(r.cmd=="ctrl_run_1"){
+      	    		renderObj=vde[1];
+      	    		vde[1].play();
+      	    		responseStatus("run");
+      	    }else if(r.cmd=="ctrl_reset"){
+      	    		vde[0].currentTime=0;
+      	    		vde[1].currentTime=0;
+      	    }else if(r.cmd=="ctrl_announce"){
+      	    		elm("announce").currentTime=0;
+      	    		elm("announce").play();
+      	    }else if(r.cmd=="ctrl_stop"){
+      	    		vde[0].pause();
+      	    		vde[1].pause();
+      	    		elm("announce").pause();
+      	    		responseStatus("stop");
+      	    }else if(r.cmd=="ctrl_light_on"){
+      	    		renderObj=img;
+      	    		imgAlphaValue=0;
+      	    		imgAlphaTarget=1;
+      	    }else if(r.cmd=="ctrl_light_off"){
+      	    		imgAlphaTarget=0;
+      	    }
+      	  }
+      	  lastQid=r.id;
+      	  setTimeout(checkCmd,1000);
+      	};
+      	q.send();
+      }
+      
+      function responseStatus(s){
+      		var q=new XMLHttpRequest();
+      		q.open("GET","status.php?status="+s+"&c="+new Date().getTime());
+      		q.send();
+      }
+    </script>
+  </head>
+  <body>
+    <div id="main">
+      <canvas id="cnv" width="800" height="600"></canvas>
+      <div id='ctrls'>
+        <div class="dragbox" id="db0"></div>
+        <div class="dragbox" id="db1"></div>
+      </div>
+    </div>
+    <div style="display:none">
+    		<canvas id="img" width="1280" height="720"></canvas>
+    		<div id="d"></div>
+      <video id="vde0" src="v0.mp4" controls></video>
+      <video id="vde1" src="v1.mp4" controls></video>
+      <audio id="announce" src="announce.ogg" controls></audio>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width">
+		<title>Mapping Console</title>
+		<style>
+			body{
+				background:#000;
+				color:#FFF;
+				font-size:30px;
+				font-family:sans-serif;
+			}
+			
+			#response{
+				font-size:15px;
+			}
+			
+			#indicator_box,#ctrl_box{
+				color:#000;
+			}
+			
+			#indicator_box span,#ctrl_box span{
+				display:inline-block;
+				width:30vw;
+				height:30vw;
+				margin:1vw;
+				background:#888;
+				text-align:center;
+				line-height:30vw;
+			}
+			
+			#ctrl_box span:active{
+				background-color:#FFF;
+				color:#000;
+			}
+		</style>
+		<script>
+			function elm(id){
+				return document.getElementById(id);
+			}
+			
+			function init(){
+				elm("ctrl_light_on").addEventListener("touchstart",command);
+				elm("ctrl_light_off").addEventListener("touchstart",command);
+				elm("ctrl_announce").addEventListener("touchstart",command);
+				elm("ctrl_run_0").addEventListener("touchstart",command);				
+				elm("ctrl_run_1").addEventListener("touchstart",command);	
+				elm("ctrl_stop").addEventListener("touchstart",command);	
+				elm("ctrl_reset").addEventListener("touchstart",command);
+				indicator("noinit","yellow");
+				checkCmd();
+			}
+			
+			function indicator(id,color){
+				elm("ind_"+id).style.backgroundColor=color||"#888";
+			}
+			
+			function command(e){
+				var v=e.target.id;
+				var qid=new Date().getTime();
+				var q=new XMLHttpRequest();
+				q.open("GET","command.php?cmd="+v+"&id="+qid);
+				q.onload=function(){
+					elm("response").innerHTML=q.response;
+				};
+				q.send();
+			}
+			
+			function checkCmd(){
+				var q=new XMLHttpRequest();
+				q.open("GET","response.oda?"+new Date().getTime());
+				q.onload=function(){
+					setTimeout(checkCmd,1000);
+					indicator("noinit");
+					elm("response").innerHTML=q.response;
+					var d=JSON.parse(q.response);
+					if(d.status=="run"){
+						indicator("stop");
+						indicator("run","red");
+					}else if(d.status=="stop"){
+						indicator("run");
+						indicator("stop","#0F0");
+					}
+				};
+				q.send();
+			}
+			
+			window.addEventListener("load",init);
+		</script>
+	</head>
+	<body>
+		<div id="response"></div>
+		<div id="indicator_box">
+			<span id="ind_noinit">通信なし</span><span id="ind_run">運転</span><span id="ind_stop">停止</span>
+		</div>
+	</body>
+	<div id="ctrl_box">
+		<span id="ctrl_light_on">ライトON</span><span id="ctrl_light_off">ライトOFF</span><span id="ctrl_announce">アナウンス</span><span id="ctrl_run_0">FLASH</span><span id="ctrl_run_1">COLOR</span><span id="ctrl_stop">停止</span><span id="ctrl_reset">リセット</span>
+	</div>
+</html>
